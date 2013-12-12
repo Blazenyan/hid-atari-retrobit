@@ -1,5 +1,5 @@
 /*
- *  HID driver for some sony "special" devices
+ *  HID driver for buggy Innex "special" devices
  *
  *  Copyright (c) 1999 Andreas Gal
  *  Copyright (c) 2000-2005 Vojtech Pavlik <vojtech@suse.cz>
@@ -22,28 +22,29 @@
 #include <linux/slab.h>
 #include <linux/usb.h>
 
-#define DEBUG_ATARI
-
 static int atari_raw_event(struct hid_device *hdev, struct hid_report *report,
 		__u8 *rd, int size)
 {
-	__u8 ud, lr;
+	__u8 ud, lr, dpad;
 	
 	/*
-		rd[0] specifies the player: 1 or 2
-		rd[1] is a bit mask of 1 = right, 2 = left, 4 = down, 8 = up
-		rd[2] is fire button pressed
+		If the adapter has two joystick ports (HID_QUIRK_MULTI_INPUT), the
+		first element in rd array specifies the player: 1 or 2
+		Next element, or the first one in case of single-port adapters,
+		is a bit mask for d-pad, 1 = right, 2 = left, 4 = down, 8 = up,
+		5 = bottom right, 6 = bottom left, 9 = top right, a = top left
+		Last element is a bit mask of pressed action buttons
 	*/
-
+	dpad = (hdev->quirks & HID_QUIRK_MULTI_INPUT) ? 1 : 0;
 #ifdef DEBUG_ATARI
 	printk(KERN_ALERT "atari:  before %d: %x %x %x\n", size, rd[0], rd[1], rd[2]);
 #endif
 
-	lr = rd[1] & 0x03;
-	if (lr == 2) rd[1] = (rd[1] & ~0x03) | 0x03;
-	ud = rd[1] & 0x0c;
-	if (ud == 8) rd[1] = (rd[1] & ~0x0c) | 0x0c;
-/*	rd[1] = (rd[1] & 0xfe) | (~rd[1] & 0x01);*/
+	lr = rd[dpad] & 0x03;
+	if (lr == 2) rd[dpad] = (rd[dpad] & ~0x03) | 0x03;
+	ud = rd[dpad] & 0x0c;
+	if (ud == 8) rd[dpad] = (rd[dpad] & ~0x0c) | 0x0c;
+/*	rd[1] = (rd[dpad] & 0xfe) | (~rd[dpad] & 0x01);*/
 #ifdef DEBUG_ATARI
 	printk(KERN_ALERT "after %d: %x %x %x\n", size, rd[0], rd[1], rd[2]);
 #endif
@@ -90,13 +91,16 @@ static void atari_remove(struct hid_device *hdev)
 
 #define USB_VENDOR_ID_INNEX			0x1292
 #define USB_DEVICE_ID_INNEX_ATARI_CONTROLLER	0x4154
+#define USB_DEVICE_ID_INNEX_SNES_CONTROLLER		0x5346
 #define USB_DEVICE_ID_INNEX_NES_CONTROLLER	0x4643
 
 static const struct hid_device_id atari_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_INNEX, USB_DEVICE_ID_INNEX_ATARI_CONTROLLER),
 		.driver_data = HID_QUIRK_MULTI_INPUT },
-	{ HID_USB_DEVICE(USB_VENDOR_ID_INNEX, USB_DEVICE_ID_INNEX_NES_CONTROLLER),
+	{ HID_USB_DEVICE(USB_VENDOR_ID_INNEX, USB_DEVICE_ID_INNEX_SNES_CONTROLLER),
 		.driver_data = HID_QUIRK_MULTI_INPUT },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_INNEX, USB_DEVICE_ID_INNEX_NES_CONTROLLER),
+		.driver_data = 0 },
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, atari_devices);
